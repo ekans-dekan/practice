@@ -121,7 +121,7 @@ def cluster_traces(vectors, traces):
 
 # визуализация и сохранение кластеров
 def visualize_and_save_clusters(vectors, clusters, method_name):
-    tsne = TSNE(n_components=2, random_state=42)
+    tsne = TSNE(n_components=2, random_state=42,perplexity = 5, learning_rate = 20, n_iter = 2000, early_exaggeration = 24)
     reduced_vectors = tsne.fit_transform(vectors)
 
     df_tsne = pd.DataFrame(reduced_vectors, columns=['x', 'y'])
@@ -138,6 +138,7 @@ def perform_statistical_tests(log_csv, clusters, method_name):
     patient_cluster = dict(zip(unique_patients, clusters))
     log_csv['cluster'] = log_csv['patient'].map(patient_cluster)
 
+    # Рассчитываем продолжительность лечения для каждого пациента
     duration = log_csv.groupby('patient').apply(
         lambda x: (x['DateTime'].max() - x['DateTime'].min()).days
     ).reset_index(name='duration')
@@ -145,34 +146,33 @@ def perform_statistical_tests(log_csv, clusters, method_name):
 
     results = f"Результаты статистических тестов для метода {method_name}:\n\n"
 
-    # 1. chi-squared test для диагнозов по кластерам
-    if 'diagnosis' in log_csv.columns:
-        diagnosis_cluster = pd.crosstab(log_csv['diagnosis'], log_csv['cluster'])
-        if not diagnosis_cluster.empty and diagnosis_cluster.shape[0] > 1 and diagnosis_cluster.shape[1] > 1:
-            chi2, p, dof, expected = chi2_contingency(diagnosis_cluster)
-            results += "Chi-squared test для распределения диагнозов по кластерам:\n"
+    # 1. Chi-squared test для распределения ресурсов по кластерам
+    if 'org:resource' in log_csv.columns:
+        resource_cluster = pd.crosstab(log_csv['org:resource'], log_csv['cluster'])
+        if not resource_cluster.empty and resource_cluster.shape[0] > 1 and resource_cluster.shape[1] > 1:
+            chi2, p, dof, expected = chi2_contingency(resource_cluster)
+            results += "Chi-squared test для распределения ресурсов по кластерам:\n"
             results += f"Chi2 = {chi2:.3f}, p-value = {p:.4f}\n"
             if p < 0.05:
-                results += "Есть статистически значимые различия в распределении диагнозов между кластерами (p < 0.05)\n"
+                results += "Есть статистически значимые различия в использовании ресурсов между кластерами (p < 0.05)\n"
             else:
-                results += "Нет статистически значимых различий в распределении диагнозов между кластерами (p >= 0.05)\n"
+                results += "Нет статистически значимых различий в использовании ресурсов между кластерами (p >= 0.05)\n"
             results += "\n"
         else:
-            results += "Недостаточно данных для выполнения chi-squared test по диагнозам\n\n"
+            results += "Недостаточно данных для выполнения chi-squared test по ресурсам\n\n"
 
-    # 2. t-tests для продолжительности лечения между всеми парами кластеров
+    # 2. T-tests и ANOVA для продолжительности лечения
     unique_clusters = np.unique(clusters)
     if len(unique_clusters) > 1 and 'duration' in duration.columns:
         results += "T-tests для продолжительности лечения между кластерами:\n"
-
-        # проверка на нормальность (упрощенная)
         cluster_durations = [duration[duration['cluster'] == c]['duration'] for c in unique_clusters]
 
+        # Попарные сравнения
         for (i, j) in combinations(unique_clusters, 2):
             group1 = duration[duration['cluster'] == i]['duration']
             group2 = duration[duration['cluster'] == j]['duration']
 
-            if len(group1) > 1 and len(group2) > 1:  # Минимум 2 наблюдения в каждой группе
+            if len(group1) > 1 and len(group2) > 1:
                 t_stat, p_val = ttest_ind(group1, group2, equal_var=False)
                 results += f"Кластер {i} (n={len(group1)}, mean={group1.mean():.2f}) vs Кластер {j} (n={len(group2)}, mean={group2.mean():.2f}):\n"
                 results += f"t = {t_stat:.3f}, p = {p_val:.4f}\n"
@@ -182,7 +182,7 @@ def perform_statistical_tests(log_csv, clusters, method_name):
                     results += "Нет статистически значимых различий (p >= 0.05)\n"
                 results += "\n"
 
-        # ANOVA для всех кластеров сразу
+        # ANOVA для всех кластеров
         if len(unique_clusters) > 2:
             f_stat, p_val = f_oneway(*cluster_durations)
             results += f"ANOVA для всех кластеров:\nF = {f_stat:.3f}, p = {p_val:.4f}\n"
@@ -194,7 +194,6 @@ def perform_statistical_tests(log_csv, clusters, method_name):
         results += "Недостаточно данных для выполнения t-tests по продолжительности лечения\n"
 
     save_text(results, f'statistical_tests_{method_name}.txt')
-
 
 def analyze_and_save_clusters(log_csv, clusters, method_name):
     unique_patients = log_csv['patient'].unique()
