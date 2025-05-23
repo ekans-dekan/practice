@@ -129,7 +129,7 @@ def vectorize_traces(event_log, method='bow'):
 def cluster_traces(vectors, traces):
     scaler = StandardScaler()
     scaled_vectors = scaler.fit_transform(vectors)
-    clusterer = hdbscan.HDBSCAN(min_cluster_size=10, min_samples=2, cluster_selection_epsilon=0.7, cluster_selection_method='leaf')
+    clusterer = hdbscan.HDBSCAN(min_cluster_size=10, min_samples=2, cluster_selection_epsilon=0.7, cluster_selection_method='eom')
     return clusterer.fit_predict(scaled_vectors)
 
 
