@@ -1,0 +1,40 @@
+Результаты кластеризации:
+
+Кластер -1 (90 пациентов):
+
+Топ действий:
+ First consult     90
+ Blood test        90
+ Physical test     90
+ Second consult    90
+ Final consult     90
+ X-ray scan        80
+ Medicine          73
+ Surgery           17
+
+Средняя продолжительность лечения: 8.9 дней
+
+Типичная трасса:
+ First consult ->  Blood test ->  X-ray scan ->  Physical test ->  Second consult ->  Medicine ->  Final consult
+
+Кластер 1 (10 пациентов):
+
+Топ действий:
+ First consult     10
+ Blood test        10
+ X-ray scan        10
+ Physical test     10
+ Second consult    10
+ Final consult     10
+ Medicine           7
+ Surgery            3
+
+Средняя продолжительность лечения: 10.7 дней
+
+Типичная трасса:
+ First consult ->  Physical test ->  Blood test ->  X-ray scan ->  Second consult ->  Medicine ->  Final consult
+
+Выводы:
+1. Кластеры различаются по составу медицинских действий
+3. Разные кластеры имеют разную продолжительность лечения
+4. Рекомендуется анализировать типичные трассы для оптимизации процессов
