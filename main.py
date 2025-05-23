@@ -13,35 +13,26 @@ import seaborn as sns
 from scipy.stats import chi2_contingency, f_oneway, ttest_ind
 import warnings
 from itertools import combinations
-from karateclub import Graph2Vec  # Добавлено для graph2vec
-import networkx as nx  # Добавлено для работы с графами
+from karateclub import Graph2Vec
+import networkx as nx
 
-# Создаем папку для результатов
 os.makedirs('results', exist_ok=True)
-
-# Обход ошибки с triu
-try:
-    from scipy.linalg import triu
-except ImportError:
-    from numpy import triu
 
 warnings.filterwarnings('ignore')
 
-
+# сохранение графиков
 def save_figure(fig, filename):
-    """Сохраняет график в папку results"""
     path = os.path.join('results', filename)
     fig.savefig(path)
     plt.close(fig)
 
-
+# сохранение текста
 def save_text(text, filename):
-    """Сохраняет текст в файл в папке results"""
     path = os.path.join('results', filename)
     with open(path, 'w', encoding='utf-8') as f:
         f.write(text)
 
-
+# подготовка данных
 def load_and_prepare_data(file_path):
     log_csv = pd.read_csv(file_path, sep=',', engine='python')
     log_csv.columns = log_csv.columns.str.strip()
@@ -57,7 +48,7 @@ def load_and_prepare_data(file_path):
 
     return event_log, log_csv
 
-
+# векторизация
 def vectorize_traces(event_log, method='bow'):
     traces = []
     for trace in event_log:
@@ -91,8 +82,6 @@ def vectorize_traces(event_log, method='bow'):
 
     elif method == 'graph2vec':
 
-        # Уникальные действия → целые числа
-
         all_actions = sorted({action for trace in traces for action in trace})
 
         action_to_id = {action: i for i, action in enumerate(all_actions)}
@@ -110,8 +99,6 @@ def vectorize_traces(event_log, method='bow'):
                 G.add_edge(i, i + 1)
 
             graphs.append(G)
-
-        # Обучаем модель Graph2Vec
 
         model = Graph2Vec(dimensions=20, wl_iterations=2)
 
@@ -132,7 +119,7 @@ def cluster_traces(vectors, traces):
     clusterer = hdbscan.HDBSCAN(min_cluster_size=10, min_samples=2, cluster_selection_epsilon=0.7, cluster_selection_method='eom')
     return clusterer.fit_predict(scaled_vectors)
 
-
+# визуализация и сохранение кластеров
 def visualize_and_save_clusters(vectors, clusters, method_name):
     tsne = TSNE(n_components=2, random_state=42)
     reduced_vectors = tsne.fit_transform(vectors)
@@ -145,14 +132,12 @@ def visualize_and_save_clusters(vectors, clusters, method_name):
     plt.title(f'Кластеризация трасс пациентов ({method_name})')
     save_figure(fig, f'clusters_{method_name}.png')
 
-
+# статистические тесты
 def perform_statistical_tests(log_csv, clusters, method_name):
-    """Выполняет статистические тесты и сохраняет результаты"""
     unique_patients = log_csv['patient'].unique()
     patient_cluster = dict(zip(unique_patients, clusters))
     log_csv['cluster'] = log_csv['patient'].map(patient_cluster)
 
-    # Подготовка данных для тестов
     duration = log_csv.groupby('patient').apply(
         lambda x: (x['DateTime'].max() - x['DateTime'].min()).days
     ).reset_index(name='duration')
@@ -160,7 +145,7 @@ def perform_statistical_tests(log_csv, clusters, method_name):
 
     results = f"Результаты статистических тестов для метода {method_name}:\n\n"
 
-    # 1. Chi-squared test для диагнозов по кластерам
+    # 1. chi-squared test для диагнозов по кластерам
     if 'diagnosis' in log_csv.columns:
         diagnosis_cluster = pd.crosstab(log_csv['diagnosis'], log_csv['cluster'])
         if not diagnosis_cluster.empty and diagnosis_cluster.shape[0] > 1 and diagnosis_cluster.shape[1] > 1:
@@ -175,12 +160,12 @@ def perform_statistical_tests(log_csv, clusters, method_name):
         else:
             results += "Недостаточно данных для выполнения chi-squared test по диагнозам\n\n"
 
-    # 2. T-tests для продолжительности лечения между всеми парами кластеров
+    # 2. t-tests для продолжительности лечения между всеми парами кластеров
     unique_clusters = np.unique(clusters)
     if len(unique_clusters) > 1 and 'duration' in duration.columns:
         results += "T-tests для продолжительности лечения между кластерами:\n"
 
-        # Проверка на нормальность (упрощенная - на практике нужно использовать тесты нормальности)
+        # проверка на нормальность (упрощенная)
         cluster_durations = [duration[duration['cluster'] == c]['duration'] for c in unique_clusters]
 
         for (i, j) in combinations(unique_clusters, 2):
@@ -216,7 +201,7 @@ def analyze_and_save_clusters(log_csv, clusters, method_name):
     patient_cluster = dict(zip(unique_patients, clusters))
     log_csv['cluster'] = log_csv['patient'].map(patient_cluster)
 
-    # 1. Распределение действий
+    # распределение действий
     action_cluster = pd.crosstab(log_csv['action'], log_csv['cluster'])
     if not action_cluster.empty:
         fig, ax = plt.subplots(figsize=(12, 8))
@@ -227,16 +212,15 @@ def analyze_and_save_clusters(log_csv, clusters, method_name):
         plt.tight_layout()
         save_figure(fig, f'actions_distribution_{method_name}.png')
 
-    # 2. Распределение ресурсов (исправленная версия)
+    # распределение ресурсов
     if 'org:resource' in log_csv.columns:
         resource_cluster = pd.crosstab(log_csv['org:resource'], log_csv['cluster'])
         if not resource_cluster.empty:
             fig, ax = plt.subplots(figsize=(max(12, len(resource_cluster) * 0.8), 8))
 
-            # Используем цветовую палитру
             colors = sns.color_palette("husl", len(resource_cluster.columns))
 
-            # Строим график
+            # график
             resource_cluster.plot(
                 kind='bar',
                 stacked=True,
@@ -245,17 +229,14 @@ def analyze_and_save_clusters(log_csv, clusters, method_name):
                 color=colors
             )
 
-            # Настройки графика
             plt.title(f'Распределение ресурсов по кластерам ({method_name})')
             plt.ylabel('Количество случаев')
             plt.xlabel('Медицинский персонал/ресурсы')
 
-            # Настройка подписей
             rotation = 45 if len(resource_cluster) > 5 else 0
             ha = 'right' if len(resource_cluster) > 5 else 'center'
             plt.xticks(rotation=rotation, ha=ha)
 
-            # Добавляем значения на столбцы
             for container in ax.containers:
                 ax.bar_label(container, label_type='center', fmt='%d', padding=2)
 
@@ -264,7 +245,7 @@ def analyze_and_save_clusters(log_csv, clusters, method_name):
         else:
             print(f"Предупреждение: Нет данных для resources_distribution_{method_name}")
 
-    # 3. Анализ продолжительности лечения
+    # анализ продолжительности лечения
     log_csv['DateTime'] = pd.to_datetime(log_csv['DateTime'])
     duration = log_csv.groupby('patient').apply(
         lambda x: (x['DateTime'].max() - x['DateTime'].min()).days
@@ -276,18 +257,6 @@ def analyze_and_save_clusters(log_csv, clusters, method_name):
         sns.boxplot(data=duration, x='cluster', y='duration', ax=ax)
         plt.title('Продолжительность лечения по кластерам (дни)')
         save_figure(fig, f'treatment_duration_{method_name}.png')
-
-    # 4. Распределение диагнозов по кластерам (если есть столбец diagnosis)
-    if 'diagnosis' in log_csv.columns:
-        diagnosis_cluster = pd.crosstab(log_csv['diagnosis'], log_csv['cluster'])
-        if not diagnosis_cluster.empty:
-            fig, ax = plt.subplots(figsize=(12, 8))
-            diagnosis_cluster.plot(kind='bar', stacked=True, ax=ax)
-            plt.title(f'Распределение диагнозов по кластерам ({method_name})')
-            plt.ylabel('Количество случаев')
-            plt.xticks(rotation=45, ha='right')
-            plt.tight_layout()
-            save_figure(fig, f'diagnosis_distribution_{method_name}.png')
 
     return log_csv
 
@@ -331,7 +300,7 @@ def save_interpretation(log_csv, clusters, traces, method_name):
 
 def main():
     file_path = 'ArtificialPatientTreatment1.csv'
-    methods = ['bow', 'tfidf', 'act2vec', 'graph2vec']  # Добавлен graph2vec
+    methods = ['bow', 'tfidf', 'act2vec', 'graph2vec']
 
     try:
         event_log, log_csv = load_and_prepare_data(file_path)
@@ -340,7 +309,7 @@ def main():
             try:
                 vectors, traces = vectorize_traces(event_log, method=method)
                 clusters = cluster_traces(vectors, traces)
-                if method == 'graph2vec':  # Только для graph2vec
+                if method == 'graph2vec':
                     clusters = np.where(clusters == 0, -1, clusters)
                 visualize_and_save_clusters(vectors, clusters, method)
                 log_csv = analyze_and_save_clusters(log_csv, clusters, method)
