@@ -289,8 +289,7 @@ def save_interpretation(log_csv, clusters, traces, method_name):
 
     interpretation += "\nВыводы:\n"
     interpretation += "1. Кластеры различаются по составу медицинских действий\n"
-    if 'diagnosis' in log_csv.columns:
-        interpretation += "2. Кластеры могут различаться по распределению диагнозов\n"
+    interpretation += "2. Кластеры могут различаться по распределению медицинских ресурсов\n"
     interpretation += "3. Разные кластеры имеют разную продолжительность лечения\n"
     interpretation += "4. Рекомендуется анализировать типичные трассы для оптимизации процессов\n"
 
